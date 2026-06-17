@@ -1,8 +1,11 @@
-name: Build x86-64 24&25
+name: Build OpenWrt 25.12 Packages
 
 on:
   workflow_dispatch:
 
+env:
+  OPENWRT_VER: 25.12.4
+  GCC_VER: 14.3.0
 
 jobs:
   build:
@@ -10,36 +13,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sdk:
-          - "24.10.6"
-          - "25.12.4"
+        include:
+          - target: x86/64
+            platform: x86-64
+            arch: x86-64
+
+          - target: rockchip/armv8
+            platform: rockchip-armv8
+            arch: aarch64_cortex-a53
+
+          - target: armsr/armv8
+            platform: armsr-armv8
+            arch: aarch64_generic
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y build-essential clang flex bison g++ gawk \
-            gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
-            python3 unzip file wget rsync zstd
+          sudo apt install -y \
+            build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git \
+            libncurses5-dev libssl-dev python3 unzip \
+            file wget rsync zstd
+
       # =========================
-      # Download SDK (correct URLs)
+      # Download SDK
       # =========================
       - name: Download OpenWrt SDK
         run: |
-          if [ "${{ matrix.sdk }}" = "24.10.6" ]; then
-            URL="https://archive.openwrt.org/releases/24.10.6/targets/x86/64/openwrt-sdk-24.10.6-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
-          else
-            URL="https://downloads.openwrt.org/releases/25.12.4/targets/x86/64/openwrt-sdk-25.12.4-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
-          fi
-          echo "Downloading: $URL"
+          SDK="openwrt-sdk-${OPENWRT_VER}-${{ matrix.platform }}_gcc-${GCC_VER}_musl.Linux-x86_64.tar.zst"
+          URL="https://downloads.openwrt.org/releases/${OPENWRT_VER}/targets/${{ matrix.target }}/$SDK"
+
+          echo "Downloading:"
+          echo "$URL"
+
           wget -q "$URL" -O sdk.tar.zst
           tar --zstd -xf sdk.tar.zst
           mv openwrt-sdk-* sdk
+
       # =========================
-      # feeds
+      # Update feeds
       # =========================
       - name: Update feeds
         run: |
@@ -47,34 +63,38 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install luci-app-run
           ./scripts/feeds install luci-i18n-run-zh-cn
+
       # =========================
-      # copy package
+      # Copy package
       # =========================
       - name: Copy luci-app-run
         run: |
           cp -r luci-app-run sdk/package/
+
       # =========================
-      # build
+      # Build
       # =========================
       - name: Build package
         run: |
           cd sdk
           make defconfig
           make package/luci-app-run/compile V=s -j$(nproc)
-      # =========================
-      # collect output
-      # =========================
-      - name: Collect ipk/apk
+
+      - name: Prepare artifacts
         run: |
           mkdir -p dist
-          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) -exec cp -v {} dist/ \;
+          find sdk/bin -type f -name "luci-app-run*.apk" -print0 | while IFS= read -r -d '' file; do
+            base=$(basename "$file" .apk)
+            cp -v "$file" "dist/${base}-${{ matrix.arch }}.apk"
+          done
+
       # =========================
-      # upload
+      # Upload artifact
       # =========================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: luci-app-run-${{ matrix.sdk }}-x86_64
+          name: luci-app-run-${{ matrix.arch }}
           path: dist/
 
   release:
@@ -89,19 +109,21 @@ jobs:
         with:
           path: dist-all
 
-      - name: Flatten
+      - name: Flatten artifacts
         run: |
           mkdir -p release
-          find dist-all -type f -exec cp -v {} release/ \;
+          find dist-all -type f -name "*.apk" -exec cp -v {} release/ \;
+
       - name: Create tag
         id: tag
         run: |
-          echo "tag=v$(date -u +%Y.%m.%d)" >> $GITHUB_OUTPUT
+          echo "tag=v$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+
       - name: Publish Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: luci-app-run ${{ steps.tag.outputs.tag }}
-          files: release/luci-app-run*
+          files: release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
