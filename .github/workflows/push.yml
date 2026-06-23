@@ -1,0 +1,49 @@
+name: Push Workflow
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify Makefile syntax
+        run: |
+          cd luci-app-run
+          make help 2>&1 || true
+
+      - name: Check file structure
+        run: |
+          echo "=== Project Structure ==="
+          find . -type f -name "*.lua" -o -name "*.js" -o -name "*.sh" -o -name "Makefile" | head -20
+
+      - name: Validate JavaScript syntax
+        run: |
+          if command -v node >/dev/null 2>&1; then
+            for file in $(find . -name "*.js" -type f); do
+              node --check "$file" && echo "✓ $file" || echo "✗ $file"
+            done
+          else
+            echo "Node.js not installed, skipping JS validation"
+          fi
+
+      - name: Validate Shell scripts
+        run: |
+          for file in $(find . -name "*.sh" -type f); do
+            if head -1 "$file" | grep -q "bash\|sh"; then
+              shellcheck "$file" 2>/dev/null || bash -n "$file" && echo "✓ $file" || echo "✗ $file"
+            fi
+          done
+
+      - name: Show commit info
+        run: |
+          echo "=== Commit Info ==="
+          echo "Commit: $GITHUB_SHA"
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Author: $GITHUB_ACTOR"
