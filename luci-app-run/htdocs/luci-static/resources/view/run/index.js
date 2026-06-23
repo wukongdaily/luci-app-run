@@ -3,9 +3,34 @@
 'require rpc';
 'require ui';
 'require poll';
-'require view/run/i18n';
 
-var I18N = require('view/run/i18n');
+var I18N = null;
+
+function loadI18N() {
+	if (I18N)
+		return Promise.resolve();
+
+	return new Promise(function(resolve, reject) {
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', '/luci-static/resources/view/run/i18n.json', true);
+		xhr.onload = function() {
+			if (xhr.status >= 200 && xhr.status < 300) {
+				try {
+					I18N = JSON.parse(xhr.responseText);
+					resolve();
+				} catch (e) {
+					reject(e);
+				}
+			} else {
+				reject(new Error('Failed to load i18n.json'));
+			}
+		};
+		xhr.onerror = function() {
+			reject(new Error('Network error loading i18n.json'));
+		};
+		xhr.send();
+	});
+}
 
 function getLang() {
 	try {
@@ -22,6 +47,9 @@ function getLang() {
 }
 
 function _(key) {
+	if (!I18N)
+		return key;
+
 	var lang = getLang();
 	var str = I18N[lang]?.[key] || I18N.zh[key] || key;
 	var args = Array.prototype.slice.call(arguments, 1);
@@ -111,47 +139,53 @@ return view.extend({
 
 	load: function () {
 		var self = this;
-		return getVersion().then(function (res) {
-			if (res && res.version) {
-				self.appVersion = res.version;
-				var storedVersion = localStorage.getItem('luci-app-run-version');
-				if (storedVersion && storedVersion !== self.appVersion) {
-					localStorage.setItem('luci-app-run-version', self.appVersion);
-					window.location.reload(true);
-				} else {
-					localStorage.setItem('luci-app-run-version', self.appVersion);
+		return loadI18N().then(function () {
+			return getVersion().then(function (res) {
+				if (res && res.version) {
+					self.appVersion = res.version;
+					var storedVersion = localStorage.getItem('luci-app-run-version');
+					if (storedVersion && storedVersion !== self.appVersion) {
+						localStorage.setItem('luci-app-run-version', self.appVersion);
+						window.location.reload(true);
+					} else {
+						localStorage.setItem('luci-app-run-version', self.appVersion);
+					}
 				}
-			}
-			return getCapabilities().then(function (cap) {
-				if (cap) {
-					self.capabilities = {
-						opkg: cap.opkg || 0,
-						apk: cap.apk || 0
-					};
-				}
-				return getStatus().catch(function () {
-					return {};
+				return getCapabilities().then(function (cap) {
+					if (cap) {
+						self.capabilities = {
+							opkg: cap.opkg || 0,
+							apk: cap.apk || 0
+						};
+					}
+					return getStatus().catch(function () {
+						return {};
+					});
+				}).catch(function () {
+					return getStatus().catch(function () {
+						return {};
+					});
 				});
 			}).catch(function () {
-				return getStatus().catch(function () {
-					return {};
+				return getCapabilities().then(function (cap) {
+					if (cap) {
+						self.capabilities = {
+							opkg: cap.opkg || 0,
+							apk: cap.apk || 0
+						};
+					}
+					return getStatus().catch(function () {
+						return {};
+					});
+				}).catch(function () {
+					return getStatus().catch(function () {
+						return {};
+					});
 				});
 			});
 		}).catch(function () {
-			return getCapabilities().then(function (cap) {
-				if (cap) {
-					self.capabilities = {
-						opkg: cap.opkg || 0,
-						apk: cap.apk || 0
-					};
-				}
-				return getStatus().catch(function () {
-					return {};
-				});
-			}).catch(function () {
-				return getStatus().catch(function () {
-					return {};
-				});
+			return getStatus().catch(function () {
+				return {};
 			});
 		});
 	},
