@@ -25,8 +25,10 @@
 		"err_no_opkg": "您的系统不支持 ipk 包安装，请选择 apk 包。",
 		"err_no_apk": "您的系统不支持 apk 包安装，请选择 ipk 包。",
 		"script_args": "脚本参数（如 -q -h）",
+		"args_hint": "您可以输入脚本参数或留空",
 		"cancel": "取消",
-		"confirm": "确定"
+		"confirm": "确定",
+		"auto_cleaned": "执行完毕，已自动清理临时文件。"
 	},
 	"en": {
 		"title": "Run Installer",
@@ -54,7 +56,9 @@
 		"err_no_opkg": "Your system does not support ipk package installation. Please use .apk packages instead.",
 		"err_no_apk": "Your system does not support apk package installation. Please use .ipk packages instead.",
 		"script_args": "Script arguments (e.g., -q -h)",
+		"args_hint": "You can enter script arguments or leave it blank",
 		"cancel": "Cancel",
-		"confirm": "OK"
+		"confirm": "OK",
+		"auto_cleaned": "Execution complete, temporary files cleaned automatically."
 	}
 }

@@ -51,9 +51,12 @@ function _(key) {
 		return key;
 
 	var lang = getLang();
-	var str = I18N[lang]?.[key] || I18N.zh[key] || key;
+	var str = (I18N[lang] && I18N[lang][key]) || (I18N.zh && I18N.zh[key]) || key;
 	var args = Array.prototype.slice.call(arguments, 1);
-	return str.format.apply(str, args);
+	if (args.length > 0) {
+		return str.format.apply(str, args);
+	}
+	return str;
 }
 
 var uploadStart = rpc.declare({
@@ -282,6 +285,8 @@ return view.extend({
 
 					self.currentUploadId = null;
 					self.logOffset = 0;
+					self.prevRunning = false;
+					self.autoCleanType = null;
 					runButton.disabled = true;
 					log.textContent = '';
 					progress.style.display = 'none';
@@ -435,6 +440,7 @@ return view.extend({
 
 		runButton.disabled = true;
 		state.textContent = _('starting');
+		self.autoCleanType = null;
 
 		return runInstaller(this.currentUploadId, args || '').then(function (res) {
 			if (res && res.error) {
@@ -448,6 +454,10 @@ return view.extend({
 			}
 
 			self.logOffset = 0;
+			self.prevRunning = true;
+			if (self.currentFileType === '.sh' || self.currentFileType === '.run') {
+				self.autoCleanType = self.currentFileType;
+			}
 			state.textContent = _('started', res.pid);
 		}).catch(function (err) {
 			runButton.disabled = false;
@@ -464,7 +474,7 @@ return view.extend({
 			}, [
 				E('input', {
 					type: 'text',
-					placeholder: _('script_args'),
+					placeholder: _('args_hint'),
 					style: 'width:100%;padding:10px;margin-bottom:15px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-size:14px',
 					id: 'run-args-dialog-input'
 				}),
@@ -473,7 +483,7 @@ return view.extend({
 				}, [
 					E('button', {
 						class: 'cbi-button cbi-button-reset',
-						style: 'padding:8px 20px',
+						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
 							document.body.removeChild(dialog);
 							callback(null);
@@ -481,7 +491,7 @@ return view.extend({
 					}, [_('cancel')]),
 					E('button', {
 						class: 'cbi-button cbi-button-action',
-						style: 'padding:8px 20px',
+						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
 							var args = document.getElementById('run-args-dialog-input').value;
 							document.body.removeChild(dialog);
@@ -509,8 +519,26 @@ return view.extend({
 
 			self.logOffset = res.offset || self.logOffset;
 
-			if (res.running)
+			if (res.running) {
 				state.textContent = _('running');
+				self.prevRunning = true;
+			} else if (self.prevRunning) {
+				// Installer just finished
+				self.prevRunning = false;
+
+				// Auto-cleanup for .sh and .run files
+				if (self.autoCleanType) {
+					self.autoCleanType = null;
+					cleanup().then(function () {
+						self.currentUploadId = null;
+						self.logOffset = 0;
+						log.textContent = '';
+						state.textContent = _('auto_cleaned');
+					}).catch(function () {
+						state.textContent = _('clean_done');
+					});
+				}
+			}
 		}).catch(function () { });
 	}
 });
