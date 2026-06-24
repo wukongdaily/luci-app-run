@@ -77,7 +77,7 @@ var uploadFinish = rpc.declare({
 var runInstaller = rpc.declare({
 	object: 'luci-app-run',
 	method: 'run',
-	params: ['id']
+	params: ['id', 'args']
 });
 
 var getStatus = rpc.declare({
@@ -134,6 +134,7 @@ return view.extend({
 
 	logOffset: 0,
 	currentUploadId: null,
+	currentFileType: null,
 	appVersion: 'unknown',
 	capabilities: { opkg: 1, apk: 1 },
 
@@ -251,13 +252,24 @@ return view.extend({
 			}
 		}, [_('choose_apk')]);
 
+		var argsInput = E('input', {
+			type: 'text',
+			id: 'run-args',
+			placeholder: _('script_args'),
+			style: 'display:none;margin-left:15px;padding:6px 12px;border:1px solid #ccc;border-radius:4px;width:200px',
+		});
+
 		var runButton = E('button', {
 			class: 'cbi-button cbi-button-action run-btn',
 			disabled: true,
 			style: 'min-width:140px;margin-left:15px;background:#7B1FA2!important;background-color:#7B1FA2!important;background-image:none!important;color:#fff!important;border-color:#7B1FA2!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
-				self.startRun(runButton, state);
+				var args = '';
+				if (self.currentFileType === '.sh') {
+					args = argsInput.value.trim();
+				}
+				self.startRun(runButton, state, args);
 			}
 		}, [_('execute')]);
 
@@ -358,6 +370,10 @@ return view.extend({
 			return Promise.reject();
 		}
 
+		// 记录文件类型
+		var ext = file.name.match(/\.(run|sh|ipk|apk)$/i);
+		self.currentFileType = ext ? ext[0].toLowerCase() : null;
+
 		progress.style.display = '';
 		progress.value = 0;
 		runButton.disabled = true;
@@ -403,8 +419,23 @@ return view.extend({
 
 				uploadFinish(session.id).then(function () {
 					state.textContent = _('upload_done', file.name, formatBytes(file.size));
+
+					// 显示或隐藏参数输入框
+					if (self.currentFileType === '.sh') {
+						argsInput.style.display = '';
+					} else {
+						argsInput.style.display = 'none';
+						argsInput.value = '';
+					}
 				}).catch(function () {
 					state.textContent = _('upload_done', file.name, formatBytes(file.size));
+
+					if (self.currentFileType === '.sh') {
+						argsInput.style.display = '';
+					} else {
+						argsInput.style.display = 'none';
+						argsInput.value = '';
+					}
 				});
 
 				resolve();
@@ -414,7 +445,7 @@ return view.extend({
 		});
 	},
 
-	startRun: function (runButton, state) {
+	startRun: function (runButton, state, args) {
 		var self = this;
 
 		if (!this.currentUploadId) return;
@@ -422,7 +453,7 @@ return view.extend({
 		runButton.disabled = true;
 		state.textContent = _('starting');
 
-		return runInstaller(this.currentUploadId).then(function (res) {
+		return runInstaller(this.currentUploadId, args || '').then(function (res) {
 			if (res && res.error) {
 				var errorMsg = res.error;
 				if (res.error === 'ERR_NO_OPKG') {

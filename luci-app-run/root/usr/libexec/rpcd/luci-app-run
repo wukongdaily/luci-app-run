@@ -108,7 +108,8 @@ method_list() {
 		"id": "String"
 	},
 	"run": {
-		"id": "String"
+		"id": "String",
+		"args": "String"
 	},
 	"status": {},
 	"read_log": {
@@ -217,6 +218,7 @@ upload_finish() {
 run_installer() {
     load_input
     get_string id
+    get_string args
     
     valid_id "$id" || { json_error "Invalid upload id"; return; }
     
@@ -279,8 +281,8 @@ run_installer() {
             (
                 cd "$work" || exit 1
                 printf 'luci-app-run: started %s\n' "$now"
-                printf 'luci-app-run: executing %s\n\n' "$file"
-                "$file"
+                printf 'luci-app-run: executing %s %s\n\n' "$file" "$args"
+                "$file" $args
                 rc=$?
                 printf '\nluci-app-run: exited with status %s at %s\n' "$rc" "$(date '+%Y-%m-%d %H:%M:%S')"
                 exit "$rc"

@@ -23,7 +23,8 @@
 		"running": "安装器正在运行。",
 		"last_file": "上一次安装包：%s",
 		"err_no_opkg": "您的系统不支持 ipk 包安装，请选择 apk 包。",
-		"err_no_apk": "您的系统不支持 apk 包安装，请选择 ipk 包。"
+		"err_no_apk": "您的系统不支持 apk 包安装，请选择 ipk 包。",
+		"script_args": "脚本参数（如 -q -h）"
 	},
 	"en": {
 		"title": "Run Installer",
@@ -49,6 +50,7 @@
 		"running": "Installer is running.",
 		"last_file": "Last installer: %s",
 		"err_no_opkg": "Your system does not support ipk package installation. Please use .apk packages instead.",
-		"err_no_apk": "Your system does not support apk package installation. Please use .ipk packages instead."
+		"err_no_apk": "Your system does not support apk package installation. Please use .ipk packages instead.",
+		"script_args": "Script arguments (e.g., -q -h)"
 	}
 }

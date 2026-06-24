@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-run
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=6
+PKG_RELEASE:=7
 
 LUCI_TITLE:=LuCI support for running installers and packages
 LUCI_DESCRIPTION:=Upload and execute .run, .sh, .ipk and .apk files from LuCI.
