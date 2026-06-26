@@ -781,10 +781,19 @@ return view.extend({
 				// Auto-cleanup for .sh and .run files
 				if (self.autoCleanType) {
 					self.autoCleanType = null;
+					var oldUploadId = self.currentUploadId;
+					var oldFileType = self.currentFileType;
 					cleanup().then(function () {
-						self.currentUploadId = null;
-						self.currentFileType = null;
-						state.textContent = _('auto_cleaned');
+						// Only clear state if user hasn't uploaded a new file in the meantime
+						if (self.currentUploadId === oldUploadId) {
+							self.currentUploadId = null;
+							self.currentFileType = null;
+						}
+						if (oldFileType) {
+							state.textContent = _('auto_cleaned');
+						} else {
+							state.textContent = _('clean_done');
+						}
 					}).catch(function () {
 						state.textContent = _('clean_done');
 					});
