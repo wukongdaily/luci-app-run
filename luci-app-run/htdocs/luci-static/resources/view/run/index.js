@@ -99,6 +99,15 @@ function getDefaultText(key) {
 	return defaults[key] || null;
 }
 
+function cleanupStaleDialogs() {
+	var dialogs = document.querySelectorAll('div[style*="z-index:9999"]');
+	for (var i = 0; i < dialogs.length; i++) {
+		if (dialogs[i] && dialogs[i].parentNode) {
+			dialogs[i].parentNode.removeChild(dialogs[i]);
+		}
+	}
+}
+
 var uploadStart = rpc.declare({
 	object: 'luci-app-run',
 	method: 'upload_start',
@@ -243,6 +252,8 @@ return view.extend({
 	render: function (status) {
 		var self = this;
 
+		cleanupStaleDialogs();
+
 		var fileInput = E('input', {
 			'type': 'file',
 			accept: '.run,.sh,.ipk,.apk,application/x-shellscript,application/octet-stream',
@@ -279,6 +290,8 @@ return view.extend({
 			style: 'background:#333!important;background-color:#333!important;background-image:none!important;color:#fff!important;border-color:#333!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
+				fileInput.value = '';
 				fileInput.click();
 			}
 		}, [_('choose_file')]);
@@ -288,6 +301,8 @@ return view.extend({
 			style: 'margin-left:10px;background:#2E7D32!important;background-color:#2E7D32!important;background-image:none!important;color:#fff!important;border-color:#2E7D32!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
+				ipkInput.value = '';
 				ipkInput.click();
 			}
 		}, [_('choose_ipk')]);
@@ -297,6 +312,8 @@ return view.extend({
 			style: 'margin-left:10px;background:#1565C0!important;background-color:#1565C0!important;background-image:none!important;color:#fff!important;border-color:#1565C0!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
+				apkInput.value = '';
 				apkInput.click();
 			}
 		}, [_('choose_apk')]);
@@ -306,6 +323,7 @@ return view.extend({
 			style: 'margin-left:10px;background:#E65100!important;background-color:#E65100!important;background-image:none!important;color:#fff!important;border-color:#E65100!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
 				self.showDownloadDialog(function (url) {
 					if (url !== null) {
 						log.textContent = '';
@@ -322,6 +340,8 @@ return view.extend({
 			click: function (ev) {
 				ev.preventDefault();
 				ev.stopPropagation();
+
+				cleanupStaleDialogs();
 
 				log.textContent = '';
 
@@ -343,16 +363,21 @@ return view.extend({
 			style: 'margin-left:35px;background:#C62828!important;background-color:#C62828!important;background-image:none!important;color:#fff!important;border-color:#C62828!important;box-shadow:none!important;text-shadow:none!important;opacity:1!important',
 			click: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
 				cleanup().then(function (res) {
 					if (res && res.error)
 						throw new Error(res.error);
 
 					self.currentUploadId = null;
+					self.currentFileType = null;
 					self.logOffset = 0;
 					self.prevRunning = false;
 					self.autoCleanType = null;
 					log.textContent = '';
 					progress.style.display = 'none';
+					fileInput.value = '';
+					ipkInput.value = '';
+					apkInput.value = '';
 					state.textContent = _('clean_done');
 				}).catch(function (err) {
 					ui.addNotification(null, E('p', [err.message || err]), 'danger');
@@ -372,6 +397,7 @@ return view.extend({
 			},
 			drop: function (ev) {
 				ev.preventDefault();
+				cleanupStaleDialogs();
 				drop.style.borderStyle = 'dashed';
 				if (ev.dataTransfer.files && ev.dataTransfer.files.length)
 					self.uploadFile(ev.dataTransfer.files[0], progress, state, runButton);
@@ -403,6 +429,7 @@ return view.extend({
 		});
 
 		setTimeout(function () {
+			cleanupStaleDialogs();
 			runButton.disabled = false;
 			runButton.removeAttribute('disabled');
 			runButton.style.pointerEvents = 'auto';
@@ -443,7 +470,11 @@ return view.extend({
 			return Promise.reject();
 		}
 
-		// 记录文件类型
+		self.currentUploadId = null;
+		self.logOffset = 0;
+		self.prevRunning = false;
+		self.autoCleanType = null;
+
 		var ext = file.name.match(/\.(run|sh|ipk|apk)$/i);
 		self.currentFileType = ext ? ext[0].toLowerCase() : null;
 
@@ -534,17 +565,47 @@ return view.extend({
 	},
 
 	showArgsDialog: function (callback) {
+		var closed = false;
+		function closeDialog(result) {
+			if (closed) return;
+			closed = true;
+			document.removeEventListener('keydown', escHandler);
+			if (dialog.parentNode) {
+				document.body.removeChild(dialog);
+			}
+			callback(result);
+		}
+
+		function escHandler(ev) {
+			if (ev.key === 'Escape' || ev.keyCode === 27) {
+				closeDialog(null);
+			}
+		}
+
 		var dialog = E('div', {
-			style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999'
+			style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999',
+			click: function (ev) {
+				if (ev.target === dialog) {
+					closeDialog(null);
+				}
+			}
 		}, [
 			E('div', {
-				style: 'background:#fff;border-radius:8px;padding:20px;width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)'
+				style: 'background:#fff;border-radius:8px;padding:20px;width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)',
+				click: function (ev) { ev.stopPropagation(); }
 			}, [
 				E('input', {
 					type: 'text',
 					placeholder: _('args_hint'),
 					style: 'width:100%;padding:10px;margin-bottom:15px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-size:14px',
-					id: 'run-args-dialog-input'
+					id: 'run-args-dialog-input',
+					keydown: function (ev) {
+						if (ev.key === 'Enter' || ev.keyCode === 13) {
+							ev.preventDefault();
+							var args = this.value;
+							closeDialog(args);
+						}
+					}
 				}),
 				E('div', {
 					style: 'display:flex;justify-content:flex-end;gap:10px'
@@ -553,8 +614,7 @@ return view.extend({
 						class: 'cbi-button cbi-button-reset',
 						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
-							document.body.removeChild(dialog);
-							callback(null);
+							closeDialog(null);
 						}
 					}, [_('cancel')]),
 					E('button', {
@@ -562,30 +622,62 @@ return view.extend({
 						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
 							var args = document.getElementById('run-args-dialog-input').value;
-							document.body.removeChild(dialog);
-							callback(args);
+							closeDialog(args);
 						}
 					}, [_('confirm')])
 				])
 			])
 		]);
 
+		document.addEventListener('keydown', escHandler);
 		document.body.appendChild(dialog);
-		document.getElementById('run-args-dialog-input').focus();
+		setTimeout(function () {
+			var input = document.getElementById('run-args-dialog-input');
+			if (input) input.focus();
+		}, 50);
 	},
 
 	showDownloadDialog: function (callback) {
+		var closed = false;
+		function closeDialog(result) {
+			if (closed) return;
+			closed = true;
+			document.removeEventListener('keydown', escHandler);
+			if (dialog.parentNode) {
+				document.body.removeChild(dialog);
+			}
+			callback(result);
+		}
+
+		function escHandler(ev) {
+			if (ev.key === 'Escape' || ev.keyCode === 27) {
+				closeDialog(null);
+			}
+		}
+
 		var dialog = E('div', {
-			style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999'
+			style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999',
+			click: function (ev) {
+				if (ev.target === dialog) {
+					closeDialog(null);
+				}
+			}
 		}, [
 			E('div', {
-				style: 'background:#fff;border-radius:8px;padding:20px;width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)'
+				style: 'background:#fff;border-radius:8px;padding:20px;width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3)',
+				click: function (ev) { ev.stopPropagation(); }
 			}, [
 				E('input', {
 					type: 'text',
 					placeholder: _('download_url'),
 					style: 'width:100%;padding:10px;margin-bottom:15px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-size:14px',
-					id: 'run-download-url-input'
+					id: 'run-download-url-input',
+					keydown: function (ev) {
+						if (ev.key === 'Enter' || ev.keyCode === 13) {
+							ev.preventDefault();
+							confirmBtn.click();
+						}
+					}
 				}),
 				E('div', {
 					style: 'display:flex;justify-content:flex-end;gap:10px'
@@ -594,18 +686,16 @@ return view.extend({
 						class: 'cbi-button cbi-button-reset',
 						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
-							document.body.removeChild(dialog);
-							callback(null);
+							closeDialog(null);
 						}
 					}, [_('cancel')]),
 					E('button', {
-						class: 'cbi-button cbi-button-action',
+						class: 'cbi-button cbi-button-action confirm-btn',
 						style: 'padding:8px 20px;text-transform:none',
 						click: function () {
 							var url = document.getElementById('run-download-url-input').value.trim();
 							if (!url) {
-								document.body.removeChild(dialog);
-								callback(null);
+								closeDialog(null);
 								return;
 							}
 
@@ -615,16 +705,21 @@ return view.extend({
 								return;
 							}
 
-							document.body.removeChild(dialog);
-							callback(url);
+							closeDialog(url);
 						}
 					}, [_('confirm')])
 				])
 			])
 		]);
 
+		var confirmBtn = dialog.querySelector('.confirm-btn');
+
+		document.addEventListener('keydown', escHandler);
 		document.body.appendChild(dialog);
-		document.getElementById('run-download-url-input').focus();
+		setTimeout(function () {
+			var input = document.getElementById('run-download-url-input');
+			if (input) input.focus();
+		}, 50);
 	},
 
 	startDownload: function (runButton, state, url) {
@@ -672,6 +767,7 @@ return view.extend({
 					self.autoCleanType = null;
 					cleanup().then(function () {
 						self.currentUploadId = null;
+						self.currentFileType = null;
 						state.textContent = _('auto_cleaned');
 					}).catch(function () {
 						state.textContent = _('clean_done');
