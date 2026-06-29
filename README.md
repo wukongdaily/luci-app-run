@@ -2,6 +2,8 @@
 
 `luci-app-run` 是一个轻量级的 OpenWrt LuCI 应用，用于上传并运行脚本和安装包。
 
+<img width="1920" height="500" alt="121" src="https://github.com/user-attachments/assets/ba7653ef-7414-45d3-973b-31e2c1ab6396" />
+
 它支持用户上传 `.run`、`.sh`、`.ipk` 和 `.apk` 文件，将其保存到 `/tmp/luci-app-run` 目录，并根据文件类型执行相应的操作：
 - `.run` 和 `.sh` 文件：赋予可执行权限后直接运行
 - `.ipk` 文件：使用 opkg 包管理器安装（适用于 OpenWrt 24.10 及以下版本）
